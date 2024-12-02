@@ -25,7 +25,6 @@ main(void)
 	volatile uint32_t *		resultBufferSize	= (uint32_t *) kSignaloidSoCDeviceConstantsMISOBufferAddress;
 	volatile uint8_t *		resultBuffer		= (uint8_t *) (kSignaloidSoCDeviceConstantsMISOBufferAddress + sizeof(uint32_t));
 
-	volatile double 		argument0 		= UxHwDoubleUniformDist(1.0, 2.0);
 	double				argument1;	
 	double				argument2;
 

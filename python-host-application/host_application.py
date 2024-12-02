@@ -1,22 +1,22 @@
-# 	Copyright (c) 2024, Signaloid.
+#   Copyright (c) 2024, Signaloid.
 #
-# 	Permission is hereby granted, free of charge, to any person obtaining a copy
-# 	of this software and associated documentation files (the "Software"), to
-# 	deal in the Software without restriction, including without limitation the
-# 	rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# 	sell copies of the Software, and to permit persons to whom the Software is
-# 	furnished to do so, subject to the following conditions:
+#   Permission is hereby granted, free of charge, to any person obtaining a
+#   copy of this software and associated documentation files (the "Software"),
+#   to deal in the Software without restriction, including without limitation
+#   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+#   and/or sell copies of the Software, and to permit persons to whom the
+#   Software is furnished to do so, subject to the following conditions:
 #
-# 	The above copyright notice and this permission notice shall be included in
-# 	all copies or substantial portions of the Software.
+#   The above copyright notice and this permission notice shall be included in
+#   all copies or substantial portions of the Software.
 #
-# 	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# 	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# 	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# 	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# 	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# 	FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-# 	DEALINGS IN THE SOFTWARE.
+#   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+#   DEALINGS IN THE SOFTWARE.
 
 import argparse
 import sys
@@ -209,7 +209,7 @@ def parse_arguments():
     # Subparser for "get" command (requires one positive integer argument)
     parser_sample = subparsers.add_parser(
         'sample',
-        help='Get samples from example built-in LLM per-token distribution'
+        help='Get samples from example built-in distribution'
     )
 
     parser_sample.add_argument(
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     print("\tmul \tMultiply two uncertainty values")
     print("\tdiv \tDivide two uncertainty values")
     print("\tsample \tGet samples from example "
-          "built-in LLM per-token distribution\n")
+          "built-in distribution\n")
 
     # Handle the commands and their arguments
     if args.command == 'add':
@@ -246,7 +246,7 @@ if __name__ == "__main__":
         if args.count <= 0 or args.count > 512:
             print("Error: The count argument must be a in the range [1, 512]")
         else:
-            print("Sampling from example built-in LLM per-token distribution")
+            print("Sampling from example built-in distribution")
     else:
         print(
             "Invalid command. Please use 'add', 'sub', "
