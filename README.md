@@ -7,6 +7,8 @@ This demo application for the C0-microSD supports the following operations:
 Folder `python-host-application/` contains the source code that runs on the host that communicates with Signaloid C0-microSD.
 Folder `C0-microSD-application/` contains the source code, initialization assembly, and linker script for building an application for Signaloid C0-microSD.
 
+![application demo gif](images/capture.gif)
+
 ## Cloning this repository
 The correct way to clone this repository to get the hardware and firmware submodules is:
 
