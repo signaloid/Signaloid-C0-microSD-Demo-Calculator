@@ -22,10 +22,13 @@ import argparse
 import sys
 import struct
 import signal
+import time
 import matplotlib.pyplot as plt
 from c0microsd.interface import C0microSDSignaloidSoCInterface
 from signaloid.distributional import DistributionalValue
 from signaloid.distributional_information_plotting.plot_wrapper import plot
+from typing import Optional, Union
+import numpy as np
 
 kSignaloidC0StatusWaitingForCommand = 0
 kSignaloidC0StatusCalculating = 1
@@ -53,58 +56,58 @@ def sigint_handler(signal, frame):
     sys.exit(0)
 
 
-# Function to pack doubles into a byte buffer
-def pack_doubles(doubles: list, size: int) -> bytes:
+# Function to pack floats into a byte buffer
+def pack_floats(floats: list, size: int) -> bytes:
     """
-    Pack a list of doubles to a zero-padded bytes buffer of length size
+    Pack a list of floats to a zero-padded bytes buffer of length size
 
-    :param doubles: List of doubles to be packed
+    :param floats: List of floats to be packed
     :param size: Size of target buffer
 
     :return: The padded bytes buffer
     """
-    buffer = struct.pack(f"{len(doubles)}d", *doubles)
+    buffer = struct.pack(f"{len(floats)}f", *floats)
 
     # Pad the buffer with zeros
     if len(buffer) < size:
         buffer += bytes(size - len(buffer))
     elif len(buffer) > size:
         raise ValueError(
-            f"Buffer length exceeds {size} bytes after packing doubles."
+            f"Buffer length exceeds {size} bytes after packing floats."
         )
     return buffer
 
 
-def unpack_doubles(byte_buffer: bytes, count: int) -> list[int]:
+def unpack_floats(byte_buffer: bytes, count: int) -> list[float]:
     """
-    This function unpacks 'count' number of double-precision floating-point
+    This function unpacks 'count' number of single-precision floating-point
     numbers from the given byte buffer. It checks if the buffer has enough
     data to unpack.
 
     Parameters:
         byte_buffer: A bytes object containing the binary data.
-        count: The number of double-precision floats (doubles) to unpack.
+        count: The number of single-precision floats to unpack.
 
     Returns:
-        A list of unpacked double values.
+        A list of unpacked float values.
     """
 
-    # Each double (double-precision float) is 8 bytes
-    double_size = 8
+    # Each float (single-precision float) is 4 bytes
+    float_size = 4
 
     # Check if the buffer has enough bytes to unpack the requested
-    # number of doubles
-    expected_size = double_size * count
+    # number of floats
+    expected_size = float_size * count
     if len(byte_buffer) < expected_size:
         raise ValueError(
             f"Buffer too small: expected at least {expected_size} bytes, \
                 got {len(byte_buffer)} bytes.")
 
-    # Unpack the 'count' number of doubles ('d' format for double in struct)
-    format_string = f'{count}d'
-    doubles = struct.unpack(format_string, byte_buffer[:expected_size])
+    # Unpack the 'count' number of floats ('f' format for float in struct)
+    format_string = f'{count}f'
+    floats = struct.unpack(format_string, byte_buffer[:expected_size])
 
-    return list(doubles)
+    return list(floats)
 
 
 # Function to pack unsigned into a byte buffer
@@ -125,7 +128,7 @@ def pack_unsigned_integers(uint: list, size: int) -> bytes:
         buffer += bytes(size - len(buffer))
     elif len(buffer) > size:
         raise ValueError(
-            f"Buffer length exceeds {size} bytes after packing doubles."
+            f"Buffer length exceeds {size} bytes after packing floats."
         )
     return buffer
 
@@ -217,6 +220,13 @@ def parse_arguments():
         type=int,
         help='Sample count, maximum of 512 samples')
 
+    parser.add_argument(
+        "--benchmark",
+        default=False,
+        action="store_true",
+        help="Enable benchmarking over 20 iterations"
+    )
+
     # Parse the arguments
     args = parser.parse_args()
     return args
@@ -275,12 +285,34 @@ if __name__ == "__main__":
                 )
             )
 
-            # Calculate result
-            result_buffer = C0_microSD.calculate_command(
-                calculation_commands[args.command])
+            print("Calculating command:")
+            if args.benchmark:
+                numIterations = 20
+            else:
+                numIterations = 1
+            timings = []
+
+            for i in range(numIterations):
+                if args.benchmark:
+                    print(f"Iteration: {i}")
+
+                startTime = time.perf_counter()
+
+                # Calculate result
+                result_buffer = C0_microSD.calculate_command(
+                    calculation_commands[args.command])
+
+                endTime = time.perf_counter()
+                iterationTime = endTime - startTime
+                timings.append(iterationTime)
+
+            if args.benchmark:
+                meanTime = sum(timings) / numIterations
+                print(f"Mean execution time over {numIterations} ",
+                      f"iterations: {meanTime:.6f} seconds")
 
             # Unpack samples
-            samples = unpack_doubles(result_buffer, args.count)
+            samples = unpack_floats(result_buffer, args.count)
             print("Samples:")
             for i in range(len(samples)):
                 print(f"{i:>3}: {samples[i]}")
@@ -291,17 +323,38 @@ if __name__ == "__main__":
             arg_b_min, arg_b_max = parse_tolerance_value(args.argument_b)
 
             print("Sending parameters to C0-microSD...")
-
             C0_microSD.write_signaloid_soc_MOSI_buffer(
-                pack_doubles(
+                pack_floats(
                     [arg_a_min, arg_a_max, arg_b_min, arg_b_max],
                     C0_microSD.MOSI_BUFFER_SIZE_BYTES,
                 )
             )
 
-            # Calculate result
-            result_buffer = C0_microSD.calculate_command(
-                calculation_commands[args.command])
+            print("Calculating command:")
+            if args.benchmark:
+                numIterations = 20
+            else:
+                numIterations = 1
+            timings = []
+
+            for i in range(numIterations):
+                if args.benchmark:
+                    print(f"Iteration: {i}")
+
+                startTime = time.perf_counter()
+
+                # Calculate result
+                result_buffer = C0_microSD.calculate_command(
+                    calculation_commands[args.command])
+
+                endTime = time.perf_counter()
+                iterationTime = endTime - startTime
+                timings.append(iterationTime)
+
+            if args.benchmark:
+                meanTime = sum(timings) / numIterations
+                print(f"Mean execution time over {numIterations} ",
+                      f"iterations: {meanTime:.6f} seconds")
 
             # Interpret and remove the first 4 bytes as an unsigned integer
             returned_bytes = struct.unpack("I", result_buffer[:4])[0]
@@ -310,7 +363,8 @@ if __name__ == "__main__":
             result_buffer = result_buffer[4:]
             result_buffer = result_buffer[:returned_bytes]
 
-            distribution = DistributionalValue.parse(result_buffer)
+            distribution = DistributionalValue.parse(
+                result_buffer, double_precision=False)
 
             override_params = {
                 "figure.facecolor": "FFFFFF",
@@ -320,7 +374,7 @@ if __name__ == "__main__":
             print("Plotting distribution. Press Ctrl+C to exit.")
             plot(
                 distribution,
-                plotting_resolution=16,
+                plotting_resolution=32,
                 matplotlib_rc_params_override=override_params,
                 x_label="Distribution Support",
                 verbose=False,
