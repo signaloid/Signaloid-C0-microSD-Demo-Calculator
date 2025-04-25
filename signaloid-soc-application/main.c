@@ -123,7 +123,7 @@ main(void)
 				/*
 				 *	Pack result
 				 */
-				resultSize = UxHwFloatDistributionToByteArray(result, resultBuffer, kSignaloidSoCCommonConstantsMISOBufferSizeBytes - sizeof(uint32_t));
+				resultSize = UxHwFloatDistributionToByteArray(result, (uint8_t *) resultBuffer, kSignaloidSoCCommonConstantsMISOBufferSizeBytes - sizeof(uint32_t));
 				*resultBufferSize = resultSize;
 
 				/*
@@ -132,7 +132,7 @@ main(void)
 				*mmioStatus = kSignaloidSoCStatusDone;
 				break;
 			case kCalculateSample:
-				UxHwFloatSampleBatch(generatedDistribution, MISOBuffer, MOSIBufferUInt[0]);
+				UxHwFloatSampleBatch(generatedDistribution, (float *) MISOBuffer, MOSIBufferUInt[0]);
 
 				/*
 				 *	Set status
