@@ -25,6 +25,18 @@ If you forgot to clone with `--recursive`, and end up with empty submodule direc
 
 ## How to use:
 
+### Build the C0-microSD application
+This repo comes with a pre-built `main.c` application binary under `signaloid-soc-application/main.bin`, which you can flash right away and skip the building step.
+
+If you want to build your own version, you can use the Signaloid Cloud Developer Platform API. To do that:
+1. Login to your Signaloid Cloud Developer Platform account on [signaloid.io](https://signaloid.io).
+2. Navigate to [`Settings->Cloud Engine API`](https://signaloid.io/settings/api) and generate a new key. Save the key somewhere safe, since you will not be able to view it again.
+3. Navigate to the `signaloid-soc-application/` folder.
+4. Modify the `API_KEY` flag in the `Makefile` to point to your newly generated API key.
+5. Run `make build` to build your application. Note that every build uses the resources available on your account.
+
+To view more details on how to configure the Signaloid API core downloader tool, please read the [corresponding docs](https://github.com/signaloid/C0-microSD-utilities/tree/main/src/python/signaloid_api).
+
 
 ### Flash the C0-microSD application
 1. Navigate to the `signaloid-soc-application/` folder.
