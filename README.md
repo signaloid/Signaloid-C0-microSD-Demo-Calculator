@@ -5,7 +5,7 @@ This demo application for the C0-microSD supports the following operations:
 - Sampling from an example built-in distribution.
 
 Folder `python-host-application/` contains the source code that runs on the host that communicates with Signaloid C0-microSD.
-Folder `signaloid-soc-application/` contains the source code as a reference, and a pre-compiled binary for Signaloid C0-microSD.
+Folder `signaloid-soc-application/` contains the source code, initialization assembly, and linker script for building an application for Signaloid C0-microSD.
 
 ![application demo gif](images/capture.gif)
 
@@ -37,7 +37,6 @@ If you want to build your own version, you can use the Signaloid Cloud Developer
 
 To view more details on how to configure the Signaloid API core downloader tool, please read the [corresponding docs](https://github.com/signaloid/C0-microSD-utilities/tree/main/src/python/signaloid_api).
 
-
 ### Flash the C0-microSD application
 1. Navigate to the `signaloid-soc-application/` folder.
 2. Modify the `DEVICE` flag in the `Makefile` to point to your C0-microSD device path.
@@ -49,7 +48,7 @@ To run the python based host application you first need to install the Ux plotti
 1. Navigate to `python-host-application/`
 2. Create a virtual environment: `python3 -m venv .env`
 3. Activate virtual environment: `source .env/bin/activate`
-4. Install the `signaloid-python` package: `pip install git+https://github.com/signaloid/signaloid-python`
+4. Install the required packages: `pip install -r requirements.txt`
 5. Run the application: `sudo python3 host_application.py /dev/diskX add "1.0(5)" "1.0(5)"`, where `/dev/diskX` is the C0-microSD device path.
 
 For more information regarding the different Signaloid C0-microSD operation modes refer to the official [documentation](https://c0-microsd-docs.signaloid.io/) page.
