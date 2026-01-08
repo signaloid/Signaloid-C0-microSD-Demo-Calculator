@@ -19,16 +19,18 @@
 #   DEALINGS IN THE SOFTWARE.
 
 import argparse
-import sys
-import struct
 import signal
+import struct
+import sys
 import time
+
 import matplotlib.pyplot as plt
-from c0microsd.interface import C0microSDSignaloidSoCInterface
-from signaloid.distributional import DistributionalValue
+from signaloid.distributional.distributional import DistributionalValue
+from signaloid.distributional_information_plotting.plot_histogram_dirac_deltas import \
+    PlotData
 from signaloid.distributional_information_plotting.plot_wrapper import plot
-from typing import Optional, Union
-import numpy as np
+from signaloid_utilities.c0microsd.interface import \
+    C0microSDSignaloidSoCInterface
 
 kSignaloidC0StatusWaitingForCommand = 0
 kSignaloidC0StatusCalculating = 1
@@ -56,17 +58,18 @@ def sigint_handler(signal, frame):
     sys.exit(0)
 
 
-# Function to pack floats into a byte buffer
-def pack_floats(floats: list, size: int) -> bytes:
+def pack_floats(floats: list[float], size: int, double_precision: bool = True) -> bytes:
     """
     Pack a list of floats to a zero-padded bytes buffer of length size
 
     :param floats: List of floats to be packed
     :param size: Size of target buffer
+    :param double_precision: If the floats are in double precision representation
 
     :return: The padded bytes buffer
     """
-    buffer = struct.pack(f"{len(floats)}f", *floats)
+    format_str = f"{len(floats)}{'d' if double_precision else 'f'}"
+    buffer = struct.pack(format_str, *floats)
 
     # Pad the buffer with zeros
     if len(buffer) < size:
@@ -78,40 +81,40 @@ def pack_floats(floats: list, size: int) -> bytes:
     return buffer
 
 
-def unpack_floats(byte_buffer: bytes, count: int) -> list[float]:
+def unpack_floats(byte_buffer: bytes, count: int, double_precision: bool = True) -> list[int]:
     """
-    This function unpacks 'count' number of single-precision floating-point
-    numbers from the given byte buffer. It checks if the buffer has enough
-    data to unpack.
+    This function unpacks 'count' number of single or double precision
+    floating-point numbers from the given byte buffer. It checks if the
+    buffer has enough data to unpack.
 
-    Parameters:
-        byte_buffer: A bytes object containing the binary data.
-        count: The number of single-precision floats to unpack.
+    :param byte_buffer: A bytes object containing the binary data.
+    :param count: The number of floats to unpack.
+    :param double_precision: If the floats are in double precision representation
 
-    Returns:
-        A list of unpacked float values.
+    :return A list of unpacked floating-point values.
     """
 
-    # Each float (single-precision float) is 4 bytes
-    float_size = 4
+    # 4 bytes for each single-precision float
+    # 8 bytes for each double-precision float
+    float_size = 8 if double_precision else 4
 
     # Check if the buffer has enough bytes to unpack the requested
     # number of floats
     expected_size = float_size * count
     if len(byte_buffer) < expected_size:
         raise ValueError(
-            f"Buffer too small: expected at least {expected_size} bytes, \
-                got {len(byte_buffer)} bytes.")
+            f"Buffer too small: expected at least {expected_size} bytes, "
+            f"got {len(byte_buffer)} bytes."
+        )
 
-    # Unpack the 'count' number of floats ('f' format for float in struct)
-    format_string = f'{count}f'
+    # Unpack the 'count' number of floats
+    format_string = f"{count}{'d' if double_precision else 'f'}"
     floats = struct.unpack(format_string, byte_buffer[:expected_size])
 
     return list(floats)
 
 
-# Function to pack unsigned into a byte buffer
-def pack_unsigned_integers(uint: list, size: int) -> bytes:
+def pack_unsigned_integers(uint: list[int], size: int) -> bytes:
     """
     Pack a list of unsigned integers to a zero-padded bytes
     buffer of length size
@@ -128,12 +131,12 @@ def pack_unsigned_integers(uint: list, size: int) -> bytes:
         buffer += bytes(size - len(buffer))
     elif len(buffer) > size:
         raise ValueError(
-            f"Buffer length exceeds {size} bytes after packing floats."
+            f"Buffer length exceeds {size} bytes after packing unsigned integers."
         )
     return buffer
 
 
-def parse_tolerance_value(value_with_uncertainty):
+def parse_tolerance_value(value_with_uncertainty: str):
     # Split the value and the uncertainty part
     if '(' not in value_with_uncertainty or ')' not in value_with_uncertainty:
         raise ValueError(
@@ -232,7 +235,8 @@ def parse_arguments():
     return args
 
 
-if __name__ == "__main__":
+def main():
+    double_precision = False
     args = parse_arguments()
 
     print("Available commands:")
@@ -290,8 +294,9 @@ if __name__ == "__main__":
                 numIterations = 20
             else:
                 numIterations = 1
-            timings = []
+            timings: list[float] = []
 
+            result_buffer: bytes = bytes()
             for i in range(numIterations):
                 if args.benchmark:
                     print(f"Iteration: {i}")
@@ -301,6 +306,9 @@ if __name__ == "__main__":
                 # Calculate result
                 result_buffer = C0_microSD.calculate_command(
                     calculation_commands[args.command])
+
+                if isinstance(result_buffer, bytes) is False:
+                    raise RuntimeError("No result buffer received.")
 
                 endTime = time.perf_counter()
                 iterationTime = endTime - startTime
@@ -312,10 +320,14 @@ if __name__ == "__main__":
                       f"iterations: {meanTime:.6f} seconds")
 
             # Unpack samples
-            samples = unpack_floats(result_buffer, args.count)
+            samples = unpack_floats(
+                result_buffer,
+                args.count,
+                double_precision=double_precision
+            )
             print("Samples:")
-            for i in range(len(samples)):
-                print(f"{i:>3}: {samples[i]}")
+            for i, sample in enumerate(samples):
+                print(f"{i:>3}: {sample}")
 
         else:
             # Parse inputs
@@ -327,6 +339,7 @@ if __name__ == "__main__":
                 pack_floats(
                     [arg_a_min, arg_a_max, arg_b_min, arg_b_max],
                     C0_microSD.MOSI_BUFFER_SIZE_BYTES,
+                    double_precision=double_precision
                 )
             )
 
@@ -335,8 +348,9 @@ if __name__ == "__main__":
                 numIterations = 20
             else:
                 numIterations = 1
-            timings = []
+            timings: list[float] = []
 
+            result_buffer: bytes = bytes()
             for i in range(numIterations):
                 if args.benchmark:
                     print(f"Iteration: {i}")
@@ -346,6 +360,9 @@ if __name__ == "__main__":
                 # Calculate result
                 result_buffer = C0_microSD.calculate_command(
                     calculation_commands[args.command])
+
+                if isinstance(result_buffer, bytes) is False:
+                    raise RuntimeError("No result buffer received.")
 
                 endTime = time.perf_counter()
                 iterationTime = endTime - startTime
@@ -364,7 +381,14 @@ if __name__ == "__main__":
             result_buffer = result_buffer[:returned_bytes]
 
             distribution = DistributionalValue.parse(
-                result_buffer, double_precision=False)
+                dist=result_buffer,
+                double_precision=double_precision
+            )
+
+            if distribution is None:
+                raise RuntimeError(
+                    "Error parsing distribution from result buffer."
+                )
 
             override_params = {
                 "figure.facecolor": "FFFFFF",
@@ -373,8 +397,9 @@ if __name__ == "__main__":
 
             print("Plotting distribution. Press Ctrl+C to exit.")
             plot(
-                distribution,
-                plotting_resolution=32,
+                plot_data=PlotData(
+                    dist=distribution,
+                ),
                 matplotlib_rc_params_override=override_params,
                 x_label="Distribution Support",
                 verbose=False,
@@ -384,3 +409,7 @@ if __name__ == "__main__":
             f"An error occurred while calculating: \n{e} \nAborting.",
             file=sys.stderr
         )
+
+
+if __name__ == "__main__":
+    main()
