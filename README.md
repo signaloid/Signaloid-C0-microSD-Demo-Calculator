@@ -12,7 +12,6 @@ This demo application supports the following operations:
     - Division
 - Sampling from an example built-in distribution.
 
-<!-- TODO: update this -->
 ![application demo gif](images/capture.gif)
 
 ## Compatibility
