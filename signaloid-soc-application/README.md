@@ -1,26 +1,23 @@
 # Signaloid SoC application
-This directory holds the application that runs in the Signaloid C0-microSD.
 
-## Build the application using the Signaloid API
-You can build the application via the Signaloid API using the `core_downloader` module which you can find in the [C0-microSD-utilities](https://github.com/signaloid/C0-microSD-utilities) repository (which is also a submodule of this repository).
-To build the application using the preconfigured, automated process found in the `Makefile` `make build` target please follow the main `README.md` build instructions.
+This directory holds the firmware that runs on the Signaloid SoC inside the
+compute module.
 
-This guide shows the manual process of building the application.
-1. Create a new API key in the Signaloid Cloud Development Platform (see [here](https://docs.signaloid.io/docs/api/quickstart/#authenticating)).
-2. Make sure you have the `requests` python package installed. You can create a virtual environment and install the package with the following commands:
-   ```bash
-   python -m venv .env
-   source .env/bin/activate
-   pip install requests
-   ```
-3. Go to the top-level directory of the `C0-microSD-utilities` repository and run the following:
-   ```bash
-   python -m src.python.signaloid_api.core_downloader --api-key <YOUR_API_KEY> --repo-url https://github.com/signaloid/Signaloid-C0-microSD-Demo-Calculator --build-directory signaloid-soc-application
-   ```
+The firmware is built in the Signaloid Cloud Developer Platform. Use the targets
+in the top-level [Makefile](../Makefile) to build, download, and flash it.
 
-If the application builds successfully you will get a `buildArtifacts.tar.gz` archive, which includes a binary (`main.bin`) that you can flash to the C0-microSD. We have already included the [binary](main.bin) to this repository. You can find more details on how the `core_downloader` module works [here](https://github.com/signaloid/C0-microSD-utilities/blob/main/src/python/signaloid_api/README.md).
+## Files
 
-## How to flash
-1. Modify the `DEVICE` flag in the `Makefile` to point to your C0-microSD device path.
-2. Run `make flash` and `make switch` (the green LED should blink).
-3. Power cycle the C0-microSD (the green LED should light up).
+| File                   | Purpose                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [main.c](main.c)       | Entry point. Polls the command register, dispatches to the selected command, and packs the results into the output buffer. |
+| [config.mk](config.mk) | Build configuration. Selects the target device sources.                                                                    |
+
+## Configuration
+
+`config.mk` sets the sources for the selected `DEVICE_TYPE` and the Signaloid
+Compute Module Utilities path.
+
+Add your own compiler flags through the `BUILD_FLAGS` variable, and add your
+sources and include paths on the `SOURCES` and `INC` variables respectively of
+`config.mk`.

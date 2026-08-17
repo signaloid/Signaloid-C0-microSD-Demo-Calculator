@@ -1,2 +1,2 @@
-signaloid-utilities @ git+ssh://git@github.com/signaloid/C0-microSD-utilities.git
+signaloid-utilities @ git+ssh://git@github.com/signaloid/Signaloid-Compute-Module-Utilities.git
 signaloid @ git+ssh://git@github.com/signaloid/signaloid-python.git

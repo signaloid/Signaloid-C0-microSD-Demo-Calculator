@@ -1,91 +1,197 @@
-# Signaloid-C0-microSD-Demo-Calculator
-This demo application for the C0-microSD supports the following operations:
+# Signaloid-Compute-Module-Demo-Calculator
 
-- Arithmetic operations (add, sub mul, div) of two uniform distributions.
+This is a demo application for the Signaloid compute modules implementing a
+simple distributional arithmetic calculator and sample generator.
+
+This demo application supports the following operations:
+
+- Arithmetic operations of two uniform distributions:
+    - Addition
+    - Subtraction
+    - Multiplication
+    - Division
 - Sampling from an example built-in distribution.
-
-Folder `python-host-application/` contains the source code that runs on the host that communicates with Signaloid C0-microSD.
-Folder `signaloid-soc-application/` contains the source code, initialization assembly, and linker script for building an application for Signaloid C0-microSD.
 
 ![application demo gif](images/capture.gif)
 
-## Cloning this repository
-The correct way to clone this repository to get the hardware and firmware submodules is:
+## Compatibility
 
-	git clone --recursive https://github.com/signaloid/Signaloid-C0-microSD-Demo-Calculator
+This demo currently supports:
+
+- **Signaloid C0-microSD**
+- **Signaloid C0-microSD+**
+- **Signaloid C0-SD**
+
+## Cloning this repository
+
+Clone this repository recursively to get all its submodules:
+
+```sh
+git clone --recursive https://github.com/signaloid?q=Signaloid-Compute-Module-Demo-Calculator
+```
 
 To update all submodules:
 
-	git pull --recurse-submodules
-	git submodule update --remote --recursive
+```sh
+git pull --recurse-submodules
+git submodule update --remote --recursive
+```
 
-If you forgot to clone with `--recursive`, and end up with empty submodule directories, you can remedy this with
+If you did not clone with `--recursive` and ended up with empty submodule
+directories, you can fetch them with:
 
-	git submodule update --init --recursive
+```sh
+git submodule update --init --recursive
+```
 
-## How to use:
+## Getting started
 
-### Build the C0-microSD application
-This repo comes with a pre-built `main.c` application binary under `signaloid-soc-application/main.bin`, which you can flash right away and skip the building step.
+### Project structure
 
-If you want to build your own version, you can use the Signaloid Cloud Developer Platform API. To do that:
-1. Login to your Signaloid Cloud Developer Platform account on [signaloid.io](https://signaloid.io).
-2. Navigate to [`Settings->Cloud Engine API`](https://signaloid.io/settings/api) and generate a new key. Save the key somewhere safe, since you will not be able to view it again.
-3. Navigate to the `signaloid-soc-application/` folder.
-4. Modify the `API_KEY` flag in the `Makefile` to point to your newly generated API key.
-5. Run `make build` to build your application. Note that every build uses the resources available on your account.
+- `python-host-application/`: contains the source code that runs on the host
+  machine that communicates with the Signaloid compute modules.
+- `signaloid-soc-application/`: contains the source code and build-configuration
+  for building the application for the Signaloid SoC in the compute modules.
 
-To view more details on how to configure the Signaloid API core downloader tool, please read the [corresponding docs](https://github.com/signaloid/C0-microSD-utilities/tree/main/src/python/signaloid_api).
+### Configure the `Makefile`
 
-### Flash the C0-microSD application
-1. Navigate to the `signaloid-soc-application/` folder.
-2. Modify the `DEVICE` flag in the `Makefile` to point to your C0-microSD device path.
-3. Run `make flash` and `make switch` (the green LED should blink).
-4. Power cycle the C0-microSD (the green LED should light up).
+1. Configure the `DEVICE` variable. This is the path where your compute module
+   is located (e.g. /dev/disk4).
+2. Configure the `DEVICE_TYPE` variable for your compute module. This is the
+   compute module hardware variant you are using. The supported options are:
+    - `SIGNALOID_C0_MICROSD`
+    - `SIGNALOID_C0_MICROSD_PLUS`
+    - `SIGNALOID_C0_SD`.
+3. Configure the `CORE_ID` variable matching your compute module type. This
+   controls the precision and correlation tracking for your application.
+   default: `C0-*-N` core.
 
-### Run the Python based host application
-To run the python based host application you first need to install the Ux plotting dependencies. To do that:
-1. Navigate to `python-host-application/`
-2. Create a virtual environment: `python3 -m venv .env`
-3. Activate virtual environment: `source .env/bin/activate`
-4. Install the required packages: `pip install -r requirements.txt`
-5. Run the application: `sudo python3 host_application.py /dev/diskX add "1.0(5)" "1.0(5)"`, where `/dev/diskX` is the C0-microSD device path.
+### Build the Compute Module application
 
-For more information regarding the different Signaloid C0-microSD operation modes refer to the official [documentation](https://c0-microsd-docs.signaloid.io/) page.
+The Makefile compiles the Signaloid SoC application on the Signaloid Cloud
+Compute Engine using the
+[Signaloid CLI](https://docs.signaloid.io/docs/api/signaloid-cli/intro/). The
+`Makefile` (at the repository root) uses the CLI to connect this repository,
+start a build in the Signaloid Cloud Compute Engine, and download the resulting
+`main.bin`. The build inputs (source files and include paths) are defined in
+`signaloid-soc-application/config.mk`.
+
+#### Prerequisites:
+
+- A supported Signaloid compute module (see compatibility above) and its device
+  path on your host.
+- A [Signaloid account](https://get.signaloid.io).
+- A GitHub account connected to your Signaloid account, as shown in the
+  [GitHub Login guide](https://docs.signaloid.io/docs/platform/user-interface/repositories/github-login/),
+  so you can build it on the
+  [Signaloid Cloud Developer Platform](https://signaloid.io). You can also fork
+  this demo repository, push your changes, and build your own version.
+- An API key for authentication.
+  [Create one here](https://signaloid.io/settings/api).
+- The [Signaloid CLI](https://docs.signaloid.io/docs/api/signaloid-cli/intro/)
+  installed and authenticated as shown in its
+  [installation](https://docs.signaloid.io/docs/api/signaloid-cli/installation/)
+  and
+  [authentication](https://docs.signaloid.io/docs/api/signaloid-cli/authentication/)
+  documentation.
+- **Python 3.10 or later** for the host application and the flashing toolkit.
+- Root privileges (`sudo`) for raw block-device access.
+
+#### Build the firmware
+
+To build, run `make`. This connects the repository (first run only), starts a
+cloud build, waits for it to finish, and downloads `main.bin` into the
+repository root.
+
+
+### Flash the Compute Module application
+
+1. Make sure you have correctly configured the `DEVICE` and `DEVICE_TYPE`
+   variables in the `Makefile` as described above.
+2. Run `make flash`. This flashes the `<build-id>.main.bin` (it builds and
+   downloads it first, if needed).
+3. If you are targeting a Signaloid C0-microSD, you will be asked to power cycle
+   the device to switch modes (Bootloader, Signaloid SoC). The device will have
+   finished flashing when the green LED is solid.
 
 ## Host application
-The host application is designed to parse two input arguments. Each argument specifies a uniform distribution, represented in the the [concise form of uncertainty
-notation](https://physics.nist.gov/cgi-bin/cuu/Info/Constants/definitions.html#:~:text=A%20more%20concise%20form%20of,digits%20of%20the%20quoted%20result.&text=See%20Uncertainty%20of%20Measurement%20Results), i.e., `X.Y(Z)`.
-The application supports addition, subtraction, multiplication, and division of the input arguments. The input arguments must be quoted in a linux shell.
 
+The host application is designed to parse two input arguments. Each argument
+specifies a uniform distribution, represented in the the
+[concise form of uncertainty notation](https://physics.nist.gov/cgi-bin/cuu/Info/Constants/definitions.html),
+i.e., `X.Y(Z)`. The application supports addition, subtraction, multiplication,
+and division of the input arguments. The input arguments must be quoted in a
+linux shell.
 
+### Run the Python based host application
+
+To run the Python-based host application you first need to install its
+dependencies. To do that:
+
+1. Create a virtual environment: `python3 -m venv .venv`
+2. Activate the virtual environment: `source .venv/bin/activate`
+3. Navigate to `./python-host-application`
+4. Install the requirements: `pip install -r requirements.txt`
+
+### Example command
+
+> [!IMPORTANT]
+>
+> Root privileges are required for raw access to the block device.
+>
+> We invoke the virtual environment's interpreter directly (`.venv/bin/python3`)
+> because a plain `sudo python3` would use the system Python without the
+> packages installed in the virtual environment.
+
+> [!NOTE]
+> Following examples assume a C0-microSD device located at `/dev/disk4`.
+
+Add the value `1.0` with a tolerance of `±0.5` and the value `1.0` with a
+tolerance of `±0.5`.
+
+```sh
+sudo .venv/bin/python3 ./python-host-application/host_application.py --device-path /dev/disk4 --variant C0-microSD add "1.0(5)" "1.0(5)"
 ```
-usage: host_application.py [-h] device_path {add,sub,mul,div,sample} ...
 
-Host application for C0-microSD calculator application
+Multiply the value `2.0` with a tolerance of `±0.5` and the value `5.0` with a
+tolerance of `±0.3`.
+
+```sh
+sudo .venv/bin/python3 ./python-host-application/host_application.py --device-path /dev/disk4 --variant C0-microSD mul "2.0(5)" "5.0(3)"
+```
+
+Generate 100 samples from the built-in example distribution.
+
+```zsh
+sudo python host_application.py /dev/disk4 --device-path /dev/disk4 --variant C0-microSD sample --count 100
+```
+
+### Usage
+
+```sh
+usage: host_application.py [-h] [-d DEVICE_PATH] [-v {C0-microSD,C0-microSD+,C0-SD}] [-r] [-s] [--benchmark] [--iterations ITERATIONS] {add,sub,mul,div,sample} ...
+
+Host application for the Signaloid C0 compute modules calculator demo
 
 positional arguments:
-  device_path           Path of C0-microSD
   {add,sub,mul,div,sample}
                         Commands
-    add                 Add two uncertainty values
-    sub                 Subtract two uncertainty values
-    mul                 Multiply two uncertainty values
-    div                 Divide two uncertainty values
+    add                 Add two uniform distributions X, Y
+    sub                 Subtract two uniform distributions X, Y
+    mul                 Multiply two uniform distributions X, Y
+    div                 Divide two uniform distributions X, Y
     sample              Get samples from example built-in distribution
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
-```
-
-For example, you can multiply the value `2.0` with a tolerance of `+- 0.5` and the value `5.0` with a tolerance of `+- 0.3` by running:
-
-```zsh
-sudo python host_application.py /dev/disk4 mul "2.0(5)" "5.0(3)"
-```
-In the above example, we assume that the C0-microSD device is located at `/dev/disk4`.
-
-You can also generate 100 samples from the built-in example distribution:
-```zsh
-sudo python host_application.py /dev/disk4 sample 100
+  -d, --device-path DEVICE_PATH
+                        Path of the C0 compute module device (e.g., /dev/disk4)
+  -v, --variant {C0-microSD,C0-microSD+,C0-SD}
+                        Hardware variant (default: C0-microSD+)
+  -r, --reset-on-launch
+                        Reset the core on launch. Ignored on the C0-microSD.
+  -s, --stop-on-exit    Stop the core on exit. Ignored on the C0-microSD.
+  --benchmark           Enable benchmarking
+  --iterations ITERATIONS
+                        Benchmarking iterations. Default: 20
 ```
