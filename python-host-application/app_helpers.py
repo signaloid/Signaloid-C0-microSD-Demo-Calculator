@@ -305,6 +305,7 @@ def deinit_compute_module(
 def send_command(
     compute_module: SignaloidComputeModuleInterface,
     command_value: int,
+    verbose: bool = False,
 ) -> None:
     """
     Sends the command to the compute module and waits for the calculation
@@ -316,14 +317,14 @@ def send_command(
             command_value,
             poll_sleep_time=0.001,
             skip_MISO_read=True,
-            verbose=False,
+            verbose=verbose,
         )
     else:
         compute_module.calculate_command(
             command_value,
             poll_sleep_time=0.001,
             skip_MMIO_buffer_read=True,
-            verbose=False,
+            verbose=verbose,
         )
 
 
@@ -332,6 +333,7 @@ def run_and_get_results(
     command_value: int,
     input_buffer: bytes,
     stop_on_exit: bool = True,
+    verbose: bool = False,
 ) -> bytes:
     """
     Sends the inputs, issues the command, then gets the results.
@@ -346,6 +348,7 @@ def run_and_get_results(
         send_command(
             compute_module=compute_module,
             command_value=command_value,
+            verbose=verbose,
         )
 
         # Get the results
@@ -368,7 +371,7 @@ def run_and_get_results(
 
 
 def create_input_buffer(
-    values: list[str],
+    values: list[str | int | float ],
     buffer_size: int,
     double_precision: bool = False,
 ) -> bytes:
@@ -398,33 +401,44 @@ def create_input_buffer(
 
     for arg in values:
         try:
-            if "Ux" in arg:
-                dist = DistributionalValue.parse(arg)
-                if dist is None:
-                    raise ValueError(f"[Error] Cannot parse Ux-String: {arg}")
-
-                dist_bytes = bytes(dist)
-                dist_bytes_len = struct.pack("<I", len(dist_bytes))
-                input_buffer += dist_bytes_len + dist_bytes
-            elif "(" in arg and ")" in arg:
-                min_value, max_value = parse_tolerance_value(arg)
-                dist = DistributionalValue(
-                    particle_value=(max_value + min_value) / 2,
-                    dirac_deltas=[
-                        DiracDelta(position=min_value, mass=0.5),
-                        DiracDelta(position=max_value, mass=0.5),
-                    ],
-                    double_precision=double_precision,
-                )
-
-                dist_bytes = bytes(dist)
-                dist_bytes_len = struct.pack("<I", len(dist_bytes))
-                input_buffer += dist_bytes_len + dist_bytes
-            else:
-                value = float(arg)
+            if isinstance(arg, int):
+                value = arg
+                value_bytes = struct.pack("<I", value)
+                value_bytes_len = struct.pack("<I", len(value_bytes))
+                input_buffer += value_bytes_len + value_bytes
+            elif isinstance(arg, float):
+                value = arg
                 value_bytes = struct.pack("<f", value)
                 value_bytes_len = struct.pack("<I", len(value_bytes))
                 input_buffer += value_bytes_len + value_bytes
+            elif isinstance(arg, str):
+                if "Ux" in arg:
+                    dist = DistributionalValue.parse(arg)
+                    if dist is None:
+                        raise ValueError(f"[Error] Cannot parse Ux-String: {arg}")
+
+                    dist_bytes = bytes(dist)
+                    dist_bytes_len = struct.pack("<I", len(dist_bytes))
+                    input_buffer += dist_bytes_len + dist_bytes
+                elif "(" in arg and ")" in arg:
+                    min_value, max_value = parse_tolerance_value(arg)
+                    dist = DistributionalValue(
+                        particle_value=(max_value + min_value) / 2,
+                        dirac_deltas=[
+                            DiracDelta(position=min_value, mass=0.5),
+                            DiracDelta(position=max_value, mass=0.5),
+                        ],
+                        double_precision=double_precision,
+                    )
+
+                    dist_bytes = bytes(dist)
+                    dist_bytes_len = struct.pack("<I", len(dist_bytes))
+                    input_buffer += dist_bytes_len + dist_bytes
+                else:
+                    value = float(arg)
+                    value_bytes = struct.pack("<f", value)
+                    value_bytes_len = struct.pack("<I", len(value_bytes))
+                    input_buffer += value_bytes_len + value_bytes
         except ValueError as e:
             sys.exit(
                 f"[Error] Invalid input value: {arg}.\n"
@@ -458,17 +472,17 @@ def parse_output_buffer(
             - Value (float or Ux-Binary)                  (size-of-value bytes)
     """
 
-    returned_values_count = struct.unpack("I", buffer[:4])[0]
+    returned_values_count = struct.unpack("<I", buffer[:4])[0]
     buffer = buffer[4:]
     if returned_values_count <= 0 or (
         expected_output_count is not None
         and returned_values_count != expected_output_count
     ):
-        raise RuntimeError("Output buffer cannot be parsed.")
+        raise RuntimeError(f"Output buffer cannot be parsed. Return values count: {returned_values_count}, expected: {expected_output_count}")
 
     returned_values: list[float | DistributionalValue] = []
     for _ in range(returned_values_count):
-        returned_bytes = struct.unpack("I", buffer[:4])[0]
+        returned_bytes = struct.unpack("<I", buffer[:4])[0]
         buffer = buffer[4:]
 
         temp_buffer = buffer[:returned_bytes]
@@ -493,6 +507,7 @@ def parse_output_buffer(
 
 def print_output_values(
     values: list[float | DistributionalValue],
+    value_labels: list[str] | None = None,
     skip_printing: bool = False,
     skip_plotting: bool = False,
 ):
@@ -500,13 +515,29 @@ def print_output_values(
     Given a list of floats and Distributional values, it prints the floats
     and Ux-Strings, and then plots the Distributional values.
 
+    Use the `value_labels` parameter to print names for each value.
+
     Printing can be skipped using the `skip_printing` parameter.
     Plotting can be skipped using the `skip_plotting` parameter.
     """
+
+    values_index_max_digits = len(str(len(values)))
+    if value_labels is None:
+        value_labels = []
+        for i in range(len(values)):
+            text = f"Output {i + 1:>{values_index_max_digits}}"
+            value_labels.append(text)
+
+    if len(values) != len(value_labels):
+        raise RuntimeError("Values and labels count must match.")
+
+    value_labels_max_digits: int = -1
+    for label in value_labels:
+        value_labels_max_digits = max(value_labels_max_digits, len(label))
+
     if not skip_printing:
         print("- Output values:")
 
-    values_index_max_digits = len(str(len(values)))
     for i, val in enumerate(values):
         if not skip_printing:
             if isinstance(val, DistributionalValue):
@@ -514,7 +545,9 @@ def print_output_values(
             else:
                 val_str = str(val)
 
-            print(f"[{i:>{values_index_max_digits}}] {val_str}")
+            print(
+                f"[{value_labels[i]:>{value_labels_max_digits}}]: {val_str}"
+            )
 
         if isinstance(val, DistributionalValue):
             if skip_plotting:
@@ -526,7 +559,10 @@ def print_output_values(
                     "figure.facecolor": "FFFFFF",
                     "axes.facecolor": "FFFFFF",
                 },
-                x_label=f"Distribution Support\nOutput {i}",
+                x_label=(
+                    f"Distribution Support\n"
+                    f"{value_labels[i]}"
+                ),
                 verbose=False,
             )
 
@@ -545,6 +581,7 @@ def compute_module_args(
         "--device-path",
         type=str,
         help="Path of the C0 compute module device (e.g., /dev/disk4)",
+        required=True,
     )
 
     parser.add_argument(

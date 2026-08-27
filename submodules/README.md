@@ -2,9 +2,14 @@
 
 To update all submodules:
 
-	git pull --recurse-submodules
-	git submodule update --remote --recursive
+```sh
+git pull --recurse-submodules
+git submodule update --remote --recursive
+```
 
-If you forgot to clone with `--recursive`, and end up with empty submodule directories, you can remedy this with
+If you did not clone with `--recursive` and ended up with empty submodule
+directories, you can fetch them with:
 
-	git submodule update --init --recursive
+```sh
+git submodule update --init --recursive
+```

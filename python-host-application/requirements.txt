@@ -1,2 +1,4 @@
-signaloid-utilities @ git+ssh://git@github.com/signaloid/Signaloid-Compute-Module-Utilities.git
-signaloid @ git+ssh://git@github.com/signaloid/signaloid-python.git
+argcomplete
+signaloid-utilities @ git+https://github.com/signaloid/Signaloid-Compute-Module-Utilities.git
+signaloid @ git+https://github.com/signaloid/signaloid-python.git
+
