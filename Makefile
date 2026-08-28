@@ -5,7 +5,9 @@ ROOT_DIR            := $(abspath $(MAKEFILE_DIR))
 
 # This is the path where your compute module is located (e.g. /dev/disk4).
 # Can be overridden with `make DEVICE=<your-device> target...`.
-DEVICE            ?= /dev/disk4
+DEVICE              ?= /dev/disk4
+
+SUDO                := $(shell OWNER=$$(stat -c '%U' $(DEVICE) 2>/dev/null || stat -f '%Su' $(DEVICE) 2>/dev/null); [ "$$OWNER" = "root" ] && echo "sudo" || echo "")
 
 # This is the compute module hardware variant you are using.
 # The supported options are:
@@ -16,10 +18,10 @@ DEVICE            ?= /dev/disk4
 # Can be overridden with `make DEVICE_TYPE=<your-device-type> target...`.
 DEVICE_TYPE         ?= SIGNALOID_C0_MICROSD_PLUS
 
-PYTHON              := python3
-VENV_DIR = $(ROOT_DIR)/.venv
+PYTHON              := python3 -u
+VENV_DIR            ?= $(ROOT_DIR)/.venv
 
-SIGNALOID_CLI       := signaloid-cli
+SIGNALOID_CLI       ?= signaloid-cli
 
 
 # Set variables based on DEVICE_TYPE
@@ -79,13 +81,18 @@ UTILITIES_DIR       := $(ROOT_DIR)/submodules/Signaloid-Compute-Module-Utilities
 BUILD_DIR           := signaloid-soc-application
 
 REPO_ID_FILE        := $(ROOT_DIR)/.repo_id
-REPO_ID=$(shell cat $(REPO_ID_FILE))
+REPO_ID=$(shell cat $(REPO_ID_FILE) 2> /dev/null)
 
 BUILD_ID_FILE       := $(ROOT_DIR)/.build_id
-BUILD_ID=$(shell cat $(BUILD_ID_FILE))
+BUILD_ID=$(shell cat $(BUILD_ID_FILE) 2> /dev/null)
 
 BINARY_FILENAME      = $(BUILD_ID).main.bin
 BINARY_FILE          = $(ROOT_DIR)/$(BUILD_DIR)/$(BINARY_FILENAME)
+
+# Toolkits
+MICROSD_TOOLKIT     := $(SUDO) $(PYTHON) $(UTILITIES_DIR)/C0_microSD_toolkit.py -t $(DEVICE)
+SD_TOOLKIT          := $(SUDO) $(PYTHON) $(UTILITIES_DIR)/C0_SD_toolkit.py $(DEVICE) --variant=$(DEVICE_VARIANT)
+C0_LOGGER           := $(SUDO) $(PYTHON) $(UTILITIES_DIR)/C0_debug_logger.py $(DEVICE) --variant=$(DEVICE_VARIANT)
 
 # Enable Global "Exit on Error" for shell commands
 .SHELLFLAGS         := -ec
@@ -156,35 +163,56 @@ flash-C0-microSD: $(BINARY_FILE)
 		echo "Error: Binary file is too large ($$file_size bytes)."; \
 		exit 1; \
 	fi
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_microSD_toolkit.py -t $(DEVICE) -b $(BINARY_FILE) -U -p 128K
+	@$(MICROSD_TOOLKIT) -b $(BINARY_FILE) -U -p 128K
 
 flash-C0-microSD-Plus: $(BINARY_FILE) stop
 	@echo "\n- Flashing: Signaloid C0-microSD+ [$(DEVICE)]"
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_SD_toolkit.py --variant=$(DEVICE_VARIANT) $(DEVICE) flash-application $(BINARY_FILE)
+	@$(SD_TOOLKIT) flash-application $(BINARY_FILE)
 
 flash-C0-SD: $(BINARY_FILE) stop
 	@echo "\n- Flashing: Signaloid C0-SD [$(DEVICE)]"
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_SD_toolkit.py --variant=$(DEVICE_VARIANT) $(DEVICE) flash-application $(BINARY_FILE)
+	@$(SD_TOOLKIT) flash-application $(BINARY_FILE)
 
 # Switch mode (Bootloader - Signaloid SoC) of the C0-microSD
 switch:
 	@echo "\n- Switching: Signaloid C0-microSD [$(DEVICE)]"
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_microSD_toolkit.py -t $(DEVICE) -s
+	@$(MICROSD_TOOLKIT) -s
 
 # Start the Signaloid SoC core
 start:
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_SD_toolkit.py --variant=$(DEVICE_VARIANT) $(DEVICE) config core-start
+	@$(SD_TOOLKIT) config core-start
 
 # Stop the Signaloid SoC core
 stop:
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_SD_toolkit.py --variant=$(DEVICE_VARIANT) $(DEVICE) config core-stop
+	@$(SD_TOOLKIT) config core-stop
 
 # Reset the Signaloid SoC core
 reset: stop start
 
 # Print the compute module debug logs continuously
+POLLING_RATE ?= 1
 log:
-	@sudo $(PYTHON) $(UTILITIES_DIR)/C0_debug_logger.py --variant=$(DEVICE_VARIANT) $(DEVICE)
+	$(C0_LOGGER) --polling-rate=$(POLLING_RATE);
+
+# Print the compute module debug logs
+log-once:
+	@echo "- Device logs:"
+	$(C0_LOGGER) --one-shot --no-clear;
+
+# Print the compute module debug logs as a hex-dump
+hex-dump:
+	@echo "- Device log hex-dump:"
+	$(C0_LOGGER) --hex-dump --one-shot --no-clear;
+
+# Print the compute module debug logs as a list of uint32_t hex numbers
+uint-dump:
+	@echo "- Device log uint-dump:"
+	$(C0_LOGGER) --uint-dump --one-shot --no-clear;
+
+# Print the compute module info
+info:
+	@echo "- Device info:"
+	$(SD_TOOLKIT) info
 
 # Create the virtual environment needed for running the host application
 venv $(VENV_DIR):
@@ -194,22 +222,27 @@ venv $(VENV_DIR):
 	@$(VENV_DIR)/bin/pip install -r $(ROOT_DIR)/python-host-application/requirements.txt
 
 # Base command to run the host application
-RUN_CMD=sudo $(VENV_DIR)/bin/python3 -u $(ROOT_DIR)/python-host-application/host_application.py --device-path $(DEVICE) --variant $(DEVICE_VARIANT)
+RUN_CMD=$(SUDO) $(VENV_DIR)/bin/python3 -u $(ROOT_DIR)/python-host-application/host_application.py --device-path $(DEVICE) --variant $(DEVICE_VARIANT)
 
-# Run all application commands. Useful for testing.
+SELECTED_RUN_CMD?=$(RUN_CMD)
+
+# Run multiple host application commands. Useful for testing.
 run-all: $(VENV_DIR)
 	@echo "\n- Running the host application"
-	$(RUN_CMD) add "2.0(5)" "5.0(3)"
-	$(RUN_CMD) sub "2.0(5)" "5.0(3)"
-	$(RUN_CMD) mul "2.0(5)" "5.0(3)"
-	$(RUN_CMD) div "2.0(5)" "5.0(3)"
-	$(RUN_CMD) sample --count 100
+	$(SELECTED_RUN_CMD) add "2.0(5)" "5.0(3)"
+	$(SELECTED_RUN_CMD) sub "2.0(5)" "5.0(3)"
+	$(SELECTED_RUN_CMD) mul "2.0(5)" "5.0(3)"
+	$(SELECTED_RUN_CMD) div "2.0(5)" "5.0(3)"
+	$(SELECTED_RUN_CMD) sample --count 100
+	@echo "\n- Finished successfully"
 
-# Benchmark all application commands. Useful for testing.
-bench-all: $(VENV_DIR)
-	@echo "\n- Benchmarking"
-	$(RUN_CMD) --benchmark --iterations 2000 add "2.0(5)" "5.0(3)"
-	$(RUN_CMD) --benchmark --iterations 2000 sub "2.0(5)" "5.0(3)"
-	$(RUN_CMD) --benchmark --iterations 2000 mul "2.0(5)" "5.0(3)"
-	$(RUN_CMD) --benchmark --iterations 2000 div "2.0(5)" "5.0(3)"
-	$(RUN_CMD) --benchmark --iterations 2000 sample --count 100
+# Iterations to use for benchmarking
+ITERATIONS ?= 20
+
+# Base command to run the host application in benchmark mode
+RUN_BENCH_CMD=$(RUN_CMD) --benchmark --iterations "${ITERATIONS}" --skip-plotting-results
+
+# Benchmark application commands. Useful for testing.
+bench-all:
+	@echo "\n- Start benchmarking"
+	@$(MAKE) -e SELECTED_RUN_CMD="$(RUN_BENCH_CMD)" run-all

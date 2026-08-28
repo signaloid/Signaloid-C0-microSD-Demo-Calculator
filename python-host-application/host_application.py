@@ -1,3 +1,6 @@
+#!/usr/bin/env python -u
+# PYTHON_ARGCOMPLETE_OK
+
 #   Copyright (c) 2026, Signaloid.
 #
 #   Permission is hereby granted, free of charge, to any person obtaining a
@@ -20,26 +23,24 @@
 
 
 import argparse
+import signal
 import time
 from enum import IntEnum
 
+import argcomplete
 from app_helpers import (
     compute_module_args,
+    create_input_buffer,
     init_compute_module,
-    pack_floats,
-    pack_unsigned_integers,
     parse_output_buffer,
-    parse_tolerance_value,
     print_output_values,
     run_and_get_results,
+    sigint_handler,
     unpack_floats,
 )
 from tqdm import tqdm
 
 
-# Command IDs supported by the SoC application.
-# Keep these in sync with the SignaloidSoCCommand enum in
-# signaloid-soc-application/main.c.
 class Commands(IntEnum):
     CalculateNoCommand = 0
     add = 1
@@ -53,8 +54,8 @@ def parse_arguments(
     explicit_args: list[str] | None = None,
 ):
     parser = argparse.ArgumentParser(
-        description="Host application for the Signaloid C0 compute modules \
-            calculator demo"
+        description="Host application for the Signaloid C0 compute modules "
+        "calculator demo"
     )
 
     compute_module_args(parser=parser)
@@ -102,7 +103,25 @@ def parse_arguments(
         "--count",
         type=int,
         default=1,
-        help="Sample count, maximum of 512 samples. Default: 1"
+        help="Sample count, maximum of 512 samples. Default: 1",
+    )
+
+    parser.add_argument(
+        "--skip-printing-results",
+        action="store_true",
+        help="Skip printing the resulting Ux-Strings. "
+        "Useful when benchmarking.",
+        default=False,
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip-plotting-results",
+        action="store_true",
+        help="Skip plotting the resulting Ux-Strings. "
+        "Useful when benchmarking.",
+        default=False,
+        required=False,
     )
 
     parser.add_argument(
@@ -119,11 +138,14 @@ def parse_arguments(
         help="Benchmarking iterations. Default: 20",
     )
 
+    argcomplete.autocomplete(parser)
     args = parser.parse_args(explicit_args)
     return args
 
 
 def main(explicit_args: list[str] | None = None):
+    signal.signal(signal.SIGINT, sigint_handler)
+
     args = parse_arguments(explicit_args)
 
     compute_module = init_compute_module(
@@ -141,17 +163,14 @@ def main(explicit_args: list[str] | None = None):
         or command_value == Commands.mul
         or command_value == Commands.div
     ):
-        arg_a_min, arg_a_max = parse_tolerance_value(args.argument_a)
-        arg_b_min, arg_b_max = parse_tolerance_value(args.argument_b)
-
-        input_buffer = pack_floats(
-            floats=[arg_a_min, arg_a_max, arg_b_min, arg_b_max],
-            size=compute_module.INPUT_BUFFER_SIZE_BYTES,
+        input_buffer = create_input_buffer(
+            values=[args.argument_a, args.argument_b],
+            buffer_size=compute_module.INPUT_BUFFER_SIZE_BYTES,
         )
     elif command_value == Commands.sample:
-        input_buffer = pack_unsigned_integers(
-            uint=[args.count],
-            size=compute_module.INPUT_BUFFER_SIZE_BYTES,
+        input_buffer = create_input_buffer(
+            values=[args.count],
+            buffer_size=compute_module.INPUT_BUFFER_SIZE_BYTES,
         )
 
     if args.benchmark:
@@ -159,7 +178,8 @@ def main(explicit_args: list[str] | None = None):
     else:
         iterations = 1
 
-    timings: list[float] = []
+    totalDuration: float = 0
+    result_buffer = bytes()
     for _ in tqdm(range(iterations), disable=not args.benchmark):
         startTime = time.perf_counter()
 
@@ -169,16 +189,19 @@ def main(explicit_args: list[str] | None = None):
             command_value=command_value,
             input_buffer=input_buffer,
             stop_on_exit=args.stop_on_exit,
+            verbose=not args.benchmark,
         )
 
         endTime = time.perf_counter()
         iterationTime = endTime - startTime
-        timings.append(iterationTime)
+        totalDuration += iterationTime
 
     if args.benchmark:
-        meanTime = sum(timings) / iterations
-        print(f"Mean execution time over {iterations} ",
-                f"iterations: {meanTime:.6f} seconds")
+        meanTime = totalDuration / iterations
+        print(
+            f"Mean execution time over {iterations} ",
+            f"iterations: {meanTime:.6f} seconds",
+        )
 
     if (
         command_value == Commands.add
@@ -190,14 +213,20 @@ def main(explicit_args: list[str] | None = None):
             buffer=result_buffer,
             expected_output_count=1,
         )
-        print_output_values(dists)
+        print_output_values(
+            values=dists,
+            skip_printing=args.skip_printing_results,
+            skip_plotting=args.skip_plotting_results,
+        )
     elif command_value == Commands.sample:
         samples = unpack_floats(
             byte_buffer=result_buffer,
             count=args.count,
         )
-        for i, sample in enumerate(samples):
-            print(f"{i:>3}: {sample}")
+
+        if not args.skip_printing_results:
+            for i, sample in enumerate(samples):
+                print(f"{i:>3}: {sample}")
 
 
 if __name__ == "__main__":
